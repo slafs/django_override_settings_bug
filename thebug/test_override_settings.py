@@ -2,7 +2,13 @@ from django.test import override_settings, SimpleTestCase
 from django.core import signals
 from django.conf import settings
 
-settings.configure()
+settings.configure(
+    SETTING_A='A',
+    SETTING_B='B',
+    SETTING_C='C',
+    SETTING_D='D',
+    SETTING_Z='Z',
+)
 
 
 class SettingChangeException(Exception):
