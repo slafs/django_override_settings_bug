@@ -1,3 +1,8 @@
+try:
+    from unittest import mock
+except ImportError:
+    import mock
+
 from django.test import override_settings, SimpleTestCase
 from django.core import signals
 from django.conf import settings
@@ -46,6 +51,17 @@ def change_settings_receiver(*args, **kwargs):
 signals.setting_changed.connect(change_settings_receiver)
 
 
+def filter_mock_calls(mock_calls, **kwargs):
+    """
+    From the given mock_calls list return only those calls
+    that were done with ``kwargs``.
+    """
+    for mock_call in mock_calls:
+        _, call_args, call_kwargs = mock_call
+        if all((k, v) in call_kwargs.items() for k, v in kwargs.items()):
+            yield mock_call
+
+
 class OverrideSettingsTest(SimpleTestCase):
     """
     Test three cases of "setting_changed" signal receiver failure
@@ -55,6 +71,13 @@ class OverrideSettingsTest(SimpleTestCase):
     2) receiver fails on enter,
     3) receiver fails on exit.
     """
+
+    def setUp(self):
+        self.post_receiver = mock.Mock()
+        signals.setting_changed.connect(self.post_receiver)
+
+    def tearDown(self):
+        signals.setting_changed.disconnect(self.post_receiver)
 
     def test_override_settings_both(self):
         """
@@ -70,6 +93,9 @@ class OverrideSettingsTest(SimpleTestCase):
         self.assertEquals(settings.SETTING_D, 'D')
         self.assertEquals(settings.SETTING_Z, 'Z')
 
+        post_receiver_calls_on_exit = filter_mock_calls(self.post_receiver.mock_calls, enter=False)
+        self.assertEquals(len(list(post_receiver_calls_on_exit)), 3)
+
     def test_override_settings_enter(self):
         """
         Receiver fails on enter only.
@@ -84,6 +110,9 @@ class OverrideSettingsTest(SimpleTestCase):
         self.assertEquals(settings.SETTING_D, 'D')
         self.assertEquals(settings.SETTING_Z, 'Z')
 
+        post_receiver_calls_on_exit = filter_mock_calls(self.post_receiver.mock_calls, enter=False)
+        self.assertEquals(len(list(post_receiver_calls_on_exit)), 3)
+
     def test_override_settings_exit(self):
         """
         Receiver fails on exit only.
@@ -97,3 +126,6 @@ class OverrideSettingsTest(SimpleTestCase):
         self.assertEquals(settings.SETTING_C, 'C')
         self.assertEquals(settings.SETTING_D, 'D')
         self.assertEquals(settings.SETTING_Z, 'Z')
+
+        post_receiver_calls_on_exit = filter_mock_calls(self.post_receiver.mock_calls, enter=False)
+        self.assertEquals(len(list(post_receiver_calls_on_exit)), 3)
